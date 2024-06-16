@@ -8,15 +8,13 @@ const io = socketIo(server);
 
 let users = 0;
 let gameStarted = false;
-let startUserName = null;
+let starter = 0;
 
 app.use(express.static("public"));
 
 app.get("/", (req, res) => {
     res.sendFile(__dirname + "/public/index.html");
 });
-
-let starter = 0;
 
 io.on("connection", (socket) => {
     console.log("a user connected");
@@ -56,7 +54,7 @@ io.on("connection", (socket) => {
 
         if (users < 2 && gameStarted) {
             gameStarted = false;
-            starter = 1;
+            starter = 0;
             io.emit("chat message", "stop");
         }
     });
@@ -65,9 +63,15 @@ io.on("connection", (socket) => {
         io.emit("chat message", msg);
     });
 
-    if (!gameStarted) {
-        startUserName = socket.id;
-    }
+    socket.on("current", (currents, user) => {
+        console.log("currents:", currents);
+        console.log("user:", user);
+        io.emit("current", currents, user);
+    });
+
+    socket.on("controller", (user, msg) => {
+        io.emit("controller", user, msg);
+    });
 });
 
 const PORT = process.env.PORT || 3000;
