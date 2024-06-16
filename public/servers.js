@@ -41,7 +41,3 @@ socket.on("disconnect", function () {
   // 接続された全てのクライアントに現在の接続数を送信
   socket.emit("update users count", socket.io.engine.clientsCount - 1);
 });
-
-function startAllUsers() {
-  socket.emit("chat message", "start");
-}
