@@ -370,7 +370,7 @@ function drawPredictedPosition(player, context, scale) {
     drawMatrix(player.matrix, predictedPos, context, scale);
     context.globalAlpha = 1.0; // 元に戻す
 }
-setInterval(handleKeyStates, 100);
+
 function startgames() {
     playerReset();
     update();
@@ -378,4 +378,5 @@ function startgames() {
     setInterval(() => {
         arenaSweep();
     }, 1000);
+    setInterval(handleKeyStates, 100);
 }
