@@ -5,6 +5,7 @@ context.scale(30, 30);
 const holdCanvas = document.getElementById("holdCanvas");
 const holdContext = holdCanvas.getContext("2d");
 holdContext.scale(15, 15);
+var killer = true;
 
 const colors = [
     null,
@@ -237,8 +238,9 @@ function arenaSweep() {
                 continue outer;
             }
         }
+        socket.emit("chat message", "消えたよ");
+        killer = false;
 
-        // ブロックを消す処理
         const row = arena.splice(y, 1)[0].fill(0);
         arena.unshift(row);
         player.score += 10;
@@ -337,10 +339,19 @@ function moveRowsUp() {
 }
 
 function setkiller() {
-    moveRowsUp();
-    placeDebugValue(null, arena.length - 1, 3);
-    draw();
+    console.log(killer);
+    if (killer === true) {
+        moveRowsUp();
+        placeDebugValue(null, arena.length - 1, 3);
+        draw();
+    }
 }
+function setKillerTrue() {
+    killer = true;
+    console.log("killer is now true");
+}
+setInterval(setKillerTrue, 1500);
+
 //setkiller();でおじゃま実行
 
 //ここまで
