@@ -8,22 +8,27 @@ const io = socketIo(server);
 
 app.use(express.static("public"));
 
+let users = 0; // 接続しているユーザーの総数
+
 app.get("/", (req, res) => {
     res.sendFile(__dirname + "/public/index.html");
 });
 
 io.on("connection", (socket) => {
     console.log("a user connected");
-
+    users++; // ユーザー数を増やす
+    io.emit("update users count", users); // 現在のユーザー数を全てのクライアントに送信
+    console.log(users);
     socket.on("disconnect", () => {
         console.log("user disconnected");
+        users--; // ユーザー数を減らす
+        io.emit("update users count", users); // 現在のユーザー数を全てのクライアントに送信
+        console.log(users);
     });
 
     socket.on("chat message", (msg) => {
         io.emit("chat message", msg);
     });
-
-    io.emit("update users count", io.sockets.adapter.rooms.size);
 });
 
 const PORT = process.env.PORT || 3000;
