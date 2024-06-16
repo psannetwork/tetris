@@ -19,14 +19,8 @@ io.on("connection", (socket) => {
         console.log("user disconnected");
     });
 
-    socket.on("join room", (roomid) => {
-        socket.leaveAll();
-        socket.join(roomid);
-        console.log(`user joined room ${roomid}`);
-    });
-
-    socket.on("chat message", (msg, roomid) => {
-        io.to(roomid).emit("chat message", msg);
+    socket.on("chat message", (msg) => {
+        io.emit("chat message", msg);
     });
 
     io.emit("update users count", io.sockets.adapter.rooms.size);
