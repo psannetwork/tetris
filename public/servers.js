@@ -7,8 +7,16 @@ socket.on("chat message", function (msg) {
   if (msg === "消えたよ") {
     setkiller();
   }
+  if (msg === "stop") {
+    alert("You win!");
+  }
+  if (msg === "start") {
+    startgames();
+  }
 });
-
+socket.on("update users count", (count) => {
+  console.log("Total users:", count);
+});
 function updateUsersCount(count) {
   var userCountElement = document.getElementById("user-count");
   userCountElement.textContent = count;
