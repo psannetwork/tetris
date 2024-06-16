@@ -1,4 +1,5 @@
 var socket = io();
+const countDisplay = document.getElementById('countDisplay');
 
 socket.on("chat message", function (msg) {
   console.log(msg);
@@ -14,10 +15,10 @@ socket.on("chat message", function (msg) {
   }
 });
 
-socket.on("update users count", (count) => {
-  console.log("Total users:", count);
-  updateUsersCount(count);
-});
+  socket.on("update users count", (count) => {
+    const userCountElement = document.getElementById("userCount");
+    userCountElement.textContent = "Total users: " + count;
+  });
 
 function updateUsersCount(count) {
   var userCountElement = document.getElementById("user-count");
