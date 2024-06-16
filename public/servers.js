@@ -95,3 +95,13 @@ socket.on("current", (currents, user) => {
   console.log(currents);
   console.log(user);
 });
+
+//接続確認
+setInterval(() => {
+  if (socket.connected) {
+    console.log("接続が確立されています");
+  } else {
+    console.log("接続が切断されています");
+    location.reload();
+  }
+}, 10000);
