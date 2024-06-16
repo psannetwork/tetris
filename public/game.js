@@ -312,8 +312,44 @@ function handleKeyStates() {
     }
 }
 
+function placeDebugValue(x, y, value) {
+    if (x === null && y >= 0 && y < arena.length) {
+        const randomIndex = Math.floor(Math.random() * arena[y].length);
+        for (let i = 0; i < arena[y].length; i++) {
+            if (i !== randomIndex) {
+                arena[y][i] = value;
+            }
+        }
+        draw();
+    } else if (x >= 0 && x < arena[0].length && y >= 0 && y < arena.length) {
+        arena[y][x] = value;
+        draw();
+    } else {
+        console.log("Invalid coordinates:", x, y);
+    }
+}
+
+function moveRowsUp() {
+    for (let y = 1; y < arena.length; y++) {
+        arena[y - 1] = arena[y].slice();
+    }
+    arena[arena.length - 1] = new Array(arena[0].length).fill(0);
+}
+
+function setkiller() {
+    moveRowsUp();
+    placeDebugValue(null, arena.length - 1, 3);
+    draw();
+}
+//setkiller();でおじゃま実行
+
+//ここまで
+
 setInterval(handleKeyStates, 100);
 
 playerReset();
 update();
 updateScore();
+setInterval(() => {
+    arenaSweep();
+}, 1000);
