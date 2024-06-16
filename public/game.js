@@ -101,7 +101,7 @@ function drawMatrix(matrix, offset, context, scale) {
 function draw() {
     context.fillStyle = "#000";
     context.fillRect(0, 0, canvas.width, canvas.height);
-
+    drawPredictedPosition(player, context, 30);
     drawMatrix(arena, { x: 0, y: 0 }, context, 30);
     drawMatrix(player.matrix, player.pos, context, 30);
 
@@ -355,12 +355,26 @@ setInterval(setKillerTrue, 1500);
 //setkiller();でおじゃま実行
 
 //ここまで
-
+function getPredictedPosition(player, arena) {
+    const pos = Object.assign({}, player.pos);
+    while (!collide(arena, { matrix: player.matrix, pos })) {
+        pos.y++;
+    }
+    pos.y--;
+    return pos;
+}
+function drawPredictedPosition(player, context, scale) {
+    const predictedPos = getPredictedPosition(player, arena);
+    context.globalAlpha = 0.3; // 半透明にする
+    drawMatrix(player.matrix, predictedPos, context, scale);
+    context.globalAlpha = 1.0; // 元に戻す
+}
 setInterval(handleKeyStates, 100);
-
-playerReset();
-update();
-updateScore();
-setInterval(() => {
-    arenaSweep();
-}, 1000);
+function startgames() {
+    playerReset();
+    update();
+    updateScore();
+    setInterval(() => {
+        arenaSweep();
+    }, 1000);
+}
