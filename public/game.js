@@ -175,6 +175,7 @@ function playerDrop() {
         arenaSweep();
         updateScore();
         if (gameOver) {
+            socket.emit("chat message", "died");
             alert("Game Over! Your score: " + player.score);
             document.location.reload();
         }
