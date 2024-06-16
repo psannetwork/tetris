@@ -9,6 +9,7 @@ socket.on("chat message", function (msg) {
   }
   if (msg === "stop") {
     alert("You win!");
+    window.location.reload();
   }
   if (msg === "start") {
     startgames();
