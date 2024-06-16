@@ -32,10 +32,20 @@ io.on("connection", (socket) => {
 
     // ゲーム開始条件を満たしているかチェックし、条件を満たしていれば10秒後にゲームを開始する
     if (users >= 2 && !gameStarted) {
-        setTimeout(() => {
-            io.emit("chat message", "start");
-            gameStarted = true; // ゲームを開始状態にする
-        }, 10000); // 10秒後に開始
+        let count = 10;
+        const countDown = setInterval(() => {
+            console.log(count);
+            io.emit("count message", count);
+
+            count--;
+            if (count === 0) {
+                clearInterval(countDown); // カウントダウン停止
+                io.emit("chat message", "start");
+                gameStarted = true; // ゲームを開始状態にする
+            }
+        }, 1000); // 1秒ごとにカウントダウン
+
+        console.log("Game starting in 10 seconds...");
     }
 
     // 切断時の処理
