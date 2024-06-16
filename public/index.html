@@ -4,50 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>テトリス</title>
-        <style>
-            body {
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-                height: auto;
-            }
-
-            #gameContainer {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                min-height: 600px;
-            }
-
-            #score {
-                font-size: 24px;
-                margin-bottom: 20px;
-            }
-
-            #hold {
-                font-size: 20px;
-                margin-bottom: 20px;
-                position: relative;
-            }
-
-            canvas {
-                border: 1px solid black;
-                width: 100%;
-                max-width: 300px;
-                height: auto;
-            }
-
-            #holdCanvas {
-                position: absolute;
-                top: 140px;
-                left: 10px;
-                width: 100px;
-                height: 100px;
-                z-index: 1;
-            }
-        </style>
+        <link rel="stylesheet" href="style.css" />
     </head>
     <body>
         <script src="/socket.io/socket.io.js"></script>
@@ -60,6 +17,7 @@
             <div id="score">Score: 0</div>
             <canvas id="tetris" width="300px" height="700px"></canvas>
         </div>
+        <button onclick="startAllUsers();">Start</button>
         <script src="game.js"></script>
         <script src="servers.js"></script>
     </body>
