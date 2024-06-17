@@ -16,6 +16,7 @@ body {
   position: relative;
 }
 
+
 #score {
   font-size: 24px;
   margin-bottom: 20px;
@@ -34,17 +35,37 @@ canvas {
   height: auto;
 }
 
+#tetrisCanvas {
+  position: relative;
+}
+
 #holdCanvas {
   position: absolute;
-  top: 140px;
-  left: 10px;
+  top: 0;
+  left: 250px;
   width: 100px;
   height: 100px;
   z-index: 1;
+  border: 1px solid red; /* Added border for visibility */
 }
 
 button {
   position: absolute;
   top: 10px;
   right: 10px;
+}
+
+    #tetrisPlayers {
+      flex-wrap: wrap;
+      justify-content: center; /* 中央に寄せる */
+      align-items: center; /* 中央に寄せる */
+      height: 100vh; /* ページの高さいっぱいにDiv要素を表示 */
+    }
+#userCount {
+  font-size: 16px; /* 必要に応じてフォントサイズを調整 */
+  position: absolute;
+  top: 0;
+  right: 250px;
+  margin: 10px; /* 適宜マージンを設定してください */
+  z-index: 1; /* Canvasよりも前面に表示されるように */
 }
