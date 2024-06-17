@@ -375,8 +375,8 @@ function startgames() {
     playerReset();
     update();
     updateScore();
+}
+setInterval(handleKeyStates, 80);
     setInterval(() => {
         arenaSweep();
     }, 1000);
-    setInterval(handleKeyStates, 100);
-}
