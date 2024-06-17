@@ -270,7 +270,6 @@ function update(time = 0) {
 }
 
 function updateScore() {
-    document.getElementById("score").innerText = "Score: " + player.score;
 }
 
 const keyState = {};
