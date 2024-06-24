@@ -56,7 +56,18 @@ canvas {
 </head>
 <body>
 <script src="/socket.io/socket.io.js"></script>
+<audio id="myAudio" src="audiofile.mp3" loop></audio>
+<script>
+var audio = document.getElementById("myAudio");
 
+function playAudio() {
+    audio.play();
+}
+
+function pauseAudio() {
+    audio.pause();
+}
+</script>
 <div id="gameContainer">
               <p id="userCount">Total users: </p>
 
