@@ -6,6 +6,8 @@ socket.on("chat message", function (msg) {
     setkiller();
   }
   if (msg === "stop") {
+        pauseAudio();
+
     alert("You win!");
     location.reload();
   }
