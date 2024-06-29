@@ -193,6 +193,8 @@ function playerHardDrop() {
     arenaSweep();
     updateScore();
     if (gameOver) {
+            pauseAudio();
+
         alert("Game Over! Your score: " + player.score);
         document.location.reload();
     }
