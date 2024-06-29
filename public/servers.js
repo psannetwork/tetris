@@ -11,6 +11,8 @@ socket.on("chat message", function (msg) {
   }
   if (msg === "start") {
     startgames();
+        playAudio();
+
   }
 });
 
@@ -106,3 +108,14 @@ setInterval(() => {
     location.reload();
   }
 }, 10000);
+
+
+function playAudio() {
+  var audio = document.getElementById("audio");
+  audio.play();
+}
+
+function pauseAudio() {
+  var audio = document.getElementById("audio");
+  audio.pause();
+}
