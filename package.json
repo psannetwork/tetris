@@ -1,14 +1,17 @@
 {
-  "name": "tetris of psannetwork",
+  "name": "tetris-of-psannetwork",
   "version": "1.0.0",
   "description": "Tetris",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "pm2 start server.js --name tetris-of-psannetwork",
+    "stop": "pm2 stop tetris-of-psannetwork",
+    "restart": "pm2 restart tetris-of-psannetwork"
   },
   "dependencies": {
     "express": "^4.17.1",
     "http": "0.0.1-security",
-    "socket.io": "^4.3.2"
+    "socket.io": "^4.3.2",
+    "pm2": "^5.1.0" // 依存関係にpm2を追加
   }
 }
