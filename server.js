@@ -1,6 +1,7 @@
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
+const { exec } = require("child_process");
 
 const app = express();
 const server = http.createServer(app);
@@ -9,6 +10,7 @@ const io = socketIo(server);
 let users = 0;
 let gameStarted = false;
 let starter = 0;
+let gameStartTime = null;
 
 app.use(express.static("public"));
 
@@ -40,6 +42,8 @@ io.on("connection", (socket) => {
                 clearInterval(countDown);
                 io.emit("chat message", "start");
                 gameStarted = true;
+                gameStartTime = Date.now();
+                checkGameDuration();
             }
         }, 1000);
 
@@ -78,3 +82,23 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`listening on http://localhost:${PORT}`);
 });
+
+function checkGameDuration() {
+    setTimeout(() => {
+        if (gameStarted && Date.now() - gameStartTime >= 3 * 60 * 1000) {
+            console.log("Game has been running for more than 3 minutes, restarting server...");
+            restartServer();
+        }
+    }, 3 * 60 * 1000); // Check after 3 minutes
+}
+
+function restartServer() {
+    exec("pm2 restart all", (error, stdout, stderr) => {
+        if (error) {
+            console.error(`exec error: ${error}`);
+            return;
+        }
+        console.log(`stdout: ${stdout}`);
+        console.error(`stderr: ${stderr}`);
+    });
+}
