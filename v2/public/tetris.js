@@ -39,7 +39,7 @@ function arenaSweep() {
     setTimeout(() => {
         attacker = 0;
         console.log("attacker:", attacker);
-    }, 1000);
+    }, 600);
 }
 
 function collide(arena, player) {
