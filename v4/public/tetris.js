@@ -1,6 +1,6 @@
 const canvas = document.getElementById("tetris");
 const context = canvas.getContext("2d");
-context.scale(30, 30); // スケールを調整して大きなブロックに
+context.scale(30, 30); 
 
 const nextCanvas = document.getElementById("next");
 const nextContext = nextCanvas.getContext("2d");
@@ -10,7 +10,7 @@ const holdCanvas = document.getElementById("hold");
 const holdContext = holdCanvas.getContext("2d");
 holdContext.scale(30, 30);
 
-let lineCount = 0; // 消えた行数をカウントする変数
+let lineCount = 0; 
 
 function arenaSweep() {
     let rowCount = 1;
@@ -242,7 +242,6 @@ function playerReset() {
     player.pos.x =
         ((arena[0].length / 2) | 0) - ((player.matrix[0].length / 2) | 0);
 
-    // ゲームオーバーの検出
     if (collide(arena, player)) {
         arena.forEach((row) => row.fill(0));
         player.score = 0;
@@ -250,7 +249,7 @@ function playerReset() {
         drawGameOver();
         setTimeout(() => {
             location.reload();
-        }, 1000); // 1秒後にリロード
+        }, 1000);
     }
     player.held = false;
 }
@@ -293,7 +292,7 @@ function updateScore() {
 function drawGameOver() {
     const gameover = document.createElement("div");
     gameover.id = "counter";
-    gameover.style.display = "none"; // Initially hidden
+    gameover.style.display = "none";
     gameover.style.position = "absolute";
     gameover.style.top = "50%";
     gameover.style.left = "50%";
@@ -311,7 +310,7 @@ function drawGameOver() {
 function drawWin() {
     const gameover = document.createElement("div");
     gameover.id = "counter";
-    gameover.style.display = "none"; // Initially hidden
+    gameover.style.display = "none";
     gameover.style.position = "absolute";
     gameover.style.top = "50%";
     gameover.style.left = "50%";
@@ -331,18 +330,17 @@ function stopgames() {
 
     setTimeout(() => {
         location.reload();
-    }, 2000); // 2秒後にリロード
-}
+    }, 2000); 
 const colors = [
     null,
-    "#FF0D72", // T
-    "#0DC2FF", // O
-    "#0DFF72", // L
-    "#F538FF", // J
-    "#FF8E0D", // I
-    "#FFE138", // S
-    "#3877FF", // Z
-    "#A9A9A9", // おじゃまブロック (グレー)
+    "#FF0D72", 
+    "#0DC2FF", 
+    "#0DFF72", 
+    "#F538FF", 
+    "#FF8E0D", 
+    "#FFE138", 
+    "#3877FF", 
+    "#A9A9A9",
 ];
 const arena = createMatrix(10, 20);
 
@@ -406,7 +404,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isMobile) {
         document.getElementById("controlButtons").style.display = "flex";
 
-        // ボタンのイベントリスナーを設定
         document
             .getElementById("leftButton")
             .addEventListener("click", () => playerMove(-1));
@@ -432,14 +429,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function startgames() {
-    setInterval(smoothMovement, 100); // 滑らかな移動のためのインターバル
+    setInterval(smoothMovement, 100); 
 
     playerReset();
     updateScore();
     update();
 }
 
-//おじゃま
 function attacked(lines) {
     for (let y = 0; y < arena.length - lines; ++y) {
         arena[y] = arena[y + lines];
@@ -451,11 +447,9 @@ function attacked(lines) {
     }
 }
 
-//attacked(3);
 console.log(arena);
 
-//テストデバッグ
-// 1x1のブロックをアリーナの (1, 1) に追加する関数
+
 function debugAddBlock(arena, position, value) {
     const { x, y } = position;
 
@@ -466,6 +460,5 @@ function debugAddBlock(arena, position, value) {
 
 const blockValue = 1;
 
-//debugAddBlock(arena, { x: 1, y: 1 }, blockValue);
 
 console.log(arena);
