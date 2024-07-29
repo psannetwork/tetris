@@ -10,7 +10,6 @@ if (roomIdFromUrl) {
   socket.emit("joinRoom", currentRoomId);
 }
 
-//socket.emit("ren", chaincount);
 socket.on("ren", (message) => {
   if (attacker === 0) {
     var chains = parseInt(message, 10);
@@ -20,7 +19,7 @@ socket.on("ren", (message) => {
 
 const counterDiv = document.createElement("div");
 counterDiv.id = "counter";
-counterDiv.style.display = "none"; // Initially hidden
+counterDiv.style.display = "none";
 counterDiv.style.position = "absolute";
 counterDiv.style.top = "50%";
 counterDiv.style.left = "50%";
@@ -57,7 +56,7 @@ socket.on("chatMessage", (message) => {
   } else if (match === "blocked") {
     setTimeout(() => {
       location.reload();
-    }, 9000); // 9秒後にリロード
+    }, 9000); 
   }
 });
 
