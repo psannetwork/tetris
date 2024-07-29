@@ -16,6 +16,9 @@ app.use(express.static("public")); // publicディレクトリから静的ファ
 io.on("connection", (socket) => {
   console.log("ユーザーが接続しました:", socket.id);
 
+  socket.on("positions", (msg) => {
+    io.emit("positions", msg);
+  });
   socket.on("ren", (msg) => {
     io.emit("ren", msg);
   });
