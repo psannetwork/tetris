@@ -1,6 +1,6 @@
 const canvas = document.getElementById("tetris");
 const context = canvas.getContext("2d");
-context.scale(30, 30); 
+context.scale(30, 30);
 
 const nextCanvas = document.getElementById("next");
 const nextContext = nextCanvas.getContext("2d");
@@ -249,7 +249,7 @@ function playerReset() {
         drawGameOver();
         setTimeout(() => {
             location.reload();
-        }, 1000);
+        }, 1000); 
     }
     player.held = false;
 }
@@ -292,7 +292,7 @@ function updateScore() {
 function drawGameOver() {
     const gameover = document.createElement("div");
     gameover.id = "counter";
-    gameover.style.display = "none";
+    gameover.style.display = "none"; 
     gameover.style.position = "absolute";
     gameover.style.top = "50%";
     gameover.style.left = "50%";
@@ -310,7 +310,7 @@ function drawGameOver() {
 function drawWin() {
     const gameover = document.createElement("div");
     gameover.id = "counter";
-    gameover.style.display = "none";
+    gameover.style.display = "none"; 
     gameover.style.position = "absolute";
     gameover.style.top = "50%";
     gameover.style.left = "50%";
@@ -331,6 +331,7 @@ function stopgames() {
     setTimeout(() => {
         location.reload();
     }, 2000); 
+}
 const colors = [
     null,
     "#FF0D72", 
@@ -340,7 +341,7 @@ const colors = [
     "#FF8E0D", 
     "#FFE138", 
     "#3877FF", 
-    "#A9A9A9",
+    "#A9A9A9", 
 ];
 const arena = createMatrix(10, 20);
 
@@ -448,7 +449,6 @@ function attacked(lines) {
 }
 
 console.log(arena);
-
 
 function debugAddBlock(arena, position, value) {
     const { x, y } = position;
