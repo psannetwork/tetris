@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Tetris</title>
+        <style>
+            body {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                background: #000;
+                color: white;
+                font-family: Arial, sans-serif;
+                margin: 0;
+                overflow: hidden; /* スクロールを無効化 */
+            }
+            .container {
+                display: flex;
+                align-items: center;
+            }
+            .side-panel {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                margin: 0 10px;
+            }
+            .canvas-container {
+                position: relative;
+            }
+            canvas {
+                background: #111;
+                border: 2px solid #fff;
+            }
+            #score {
+                font-size: 1.5em;
+                margin-top: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <audio id="audioPlayer" src="bgm.mp3" loop></audio>
+
+        <script src="/socket.io/socket.io.js"></script>
+        <div class="container">
+            <div class="side-panel">
+                <canvas id="hold" width="120" height="120"></canvas>
+                <div id="held">Held: None</div>
+            </div>
+            <div class="canvas-container">
+                <canvas id="tetris" width="300" height="600"></canvas>
+                <div id="score">Score: 0</div>
+            </div>
+            <div class="side-panel">
+                <canvas id="next" width="120" height="120"></canvas>
+                <div id="nextLabel">Next:</div>
+            </div>
+        </div>
+        <script src="tetris.js"></script>
+        <script src="servers.js"></script>
+    </body>
+</html>
