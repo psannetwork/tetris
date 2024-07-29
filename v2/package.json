@@ -1,0 +1,14 @@
+{
+  "name": "tetris-of-psannetwork",
+  "version": "1.0.0",
+  "description": "Tetris",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "http": "0.0.1-security",
+    "socket.io": "^4.3.2"
+  }
+}
