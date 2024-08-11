@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tetris</title>
+    <style>
+            body {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                height: 100vh;
+                background: #000;
+                color: white;
+                font-family: Arial, sans-serif;
+                margin: 0;
+                overflow: hidden;
+                flex-direction: column;
+            }
+            .left-container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                height: 100%;
+                position: relative; 
+            }
+            #controlButtons {
+                position: absolute;
+                bottom: 5px; 
+                width: 100%;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 5px; 
+                padding: 5px;
+                box-sizing: border-box; 
+            }
+
+            #controlButtons button {
+                background-color: #444;
+                border: none;
+                color: white;
+                padding: 10px; 
+                border-radius: 5px; 
+                cursor: pointer;
+                font-size: 0.8em;
+                min-width: 60px; 
+                min-height: 30px; 
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            #controlButtons button:hover {
+                background-color: #666;
+            }
+
+            #controlButtons #leftButton,
+            #controlButtons #rightButton {
+                flex: 1 1 80px;
+                font-size: 1em; 
+            }
+
+            #controlButtons #downButton,
+            #controlButtons #rotateLeftButton,
+            #controlButtons #rotateRightButton,
+            #controlButtons #hardDropButton,
+            #controlButtons #holdButton {
+                flex: 1 1 70px; 
+            }
+
+            .container {
+                display: flex;
+                align-items: center;
+                flex: 1; 
+            }
+            .side-panel {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                margin: 0 5px;
+            }
+            .canvas-container {
+                position: relative;
+            }
+            canvas {
+                background: #111;
+                border: 2px solid #fff;
+            }
+            #tetris {
+                width: 180px; 
+                height: 360px; 
+            }
+            #hold, #next {
+                width: 80px;  
+                height: 80px; 
+            }
+            #score {
+                font-size: 1em;
+                margin-top: 5px;
+            }
+        </style>
+  </head>
+  <body>
+    <audio id="audioPlayer" src="bgm.mp3" loop></audio>
+    <div class="left-container">
+      <div id="controlButtons" style="display: none">
+        <button id="leftButton">左</button>
+        <button id="rightButton">右</button>
+        <button id="downButton">下</button>
+        <button id="rotateLeftButton">回転左</button>
+        <button id="rotateRightButton">回転右</button>
+        <button id="hardDropButton">ハードドロップ</button>
+        <button id="holdButton">ホールド</button>
+      </div>
+      <div class="container">
+        <div class="side-panel">
+          <canvas id="hold"></canvas>
+          <div id="held">Held: None</div>
+        </div>
+        <div class="canvas-container">
+          <canvas id="tetris"></canvas>
+          <div id="score">Score: 0</div>
+        </div>
+        <div class="side-panel">
+          <canvas id="next"></canvas>
+          <div id="nextLabel">Next:</div>
+        </div>
+      </div>
+    </div>
+    <div class="right-container">
+      <div class="canvas-container" id="canvasContainer"></div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="tetris-mobile.js"></script>
+    <script src="servers.js"></script>
+    <script src="vc.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isMobile = /iphone|android/.test(userAgent);
+
+    if (isMobile) {
+    } else {
+              window.location.href = "/index.html";
+
+    }
+});
+      </script>
+  </body>
+</html>
