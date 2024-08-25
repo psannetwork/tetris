@@ -25,6 +25,7 @@ setup_server() {
 
 # Function to start the server
 start_server() {
+    setup_server
     echo "Starting server with PM2..."
     pm2 start npm --name "tetris-server" -- start || { echo "Failed to start server with PM2"; exit 1; }
     echo "Server started."
