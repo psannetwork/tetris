@@ -3,7 +3,6 @@
 REPO_URL="https://github.com/hirotomoki12345/tetris.git"
 REPO_DIR="tetris/v5"
 
-# Function to clone the repository and set up the server
 setup_server() {
     echo "Cloning repository..."
     git clone "$REPO_URL" || { echo "Failed to clone repository"; exit 1; }
@@ -17,8 +16,8 @@ setup_server() {
     pm2 start npm --name "tetris-server" -- start || { echo "Failed to start server with PM2"; exit 1; }
 
     echo "Setting up PM2 to start on boot..."
-    pm2 startup || { echo "Failed to set up PM2 startup"; exit 1; }
-    pm2 save || { echo "Failed to save PM2 configuration"; exit 1; }
+    sudo pm2 startup || { echo "Failed to set up PM2 startup"; exit 1; }
+    sudo pm2 save || { echo "Failed to save PM2 configuration"; exit 1; }
 
     echo "Setup complete."
 }
