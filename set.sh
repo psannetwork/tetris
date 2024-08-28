@@ -13,7 +13,7 @@ setup_server() {
     npm install || { echo "Failed to install dependencies"; exit 1; }
 
     echo "Starting server with PM2..."
-    pm2 start npm --name "tetris-server" -- start || { echo "Failed to start server with PM2"; exit 1; }
+    sudo pm2 start npm --name "tetris-server" -- start || { echo "Failed to start server with PM2"; exit 1; }
 
     echo "Setting up PM2 to start on boot..."
     sudo pm2 startup || { echo "Failed to set up PM2 startup"; exit 1; }
@@ -26,30 +26,35 @@ setup_server() {
 start_server() {
     setup_server
     echo "Starting server with PM2..."
-    pm2 start npm --name "tetris-server" -- start || { echo "Failed to start server with PM2"; exit 1; }
+    sudo pm2 start npm --name "tetris-server" -- start || { echo "Failed to start server with PM2"; exit 1; }
     echo "Server started."
 }
 
 # Function to stop and delete the server
 delete_server() {
-    echo "Stopping server with PM2..."
-    pm2 stop "tetris-server" || { echo "Failed to stop server with PM2"; exit 1; }
-    echo "Deleting server from PM2..."
-    pm2 delete "tetris-server" || { echo "Failed to delete server with PM2"; exit 1; }
+    echo "Checking if server is running..."
+    if sudo pm2 list | grep -q "tetris-server"; then
+        echo "Stopping server with PM2..."
+        sudo pm2 stop "tetris-server" || { echo "Failed to stop server with PM2"; exit 1; }
+        echo "Deleting server from PM2..."
+        sudo pm2 delete "tetris-server" || { echo "Failed to delete server with PM2"; exit 1; }
+    else
+        echo "Server is not running or does not exist."
+    fi
     echo "Server deleted."
 }
 
 # Function to restart the server
 restart_server() {
     echo "Restarting server with PM2..."
-    pm2 restart "tetris-server" || { echo "Failed to restart server with PM2"; exit 1; }
+    sudo pm2 restart "tetris-server" || { echo "Failed to restart server with PM2"; exit 1; }
     echo "Server restarted."
 }
 
 # Function to show PM2 logs
 show_logs() {
     echo "Displaying PM2 logs..."
-    pm2 logs "tetris-server"
+    sudo pm2 logs "tetris-server"
 }
 
 # Main menu
