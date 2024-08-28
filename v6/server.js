@@ -133,6 +133,6 @@ function resetGame() {
   }
 }
 
-server.listen(3000, () => {
-  console.log("サーバーがポート3000で起動しました");
+server.listen(6000, () => {
+  console.log("サーバーがポート6000で起動しました");
 });
