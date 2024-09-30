@@ -1,7 +1,7 @@
 #!/bin/bash
 
 REPO_URL="https://github.com/hirotomoki12345/tetris.git"
-REPO_DIR="tetris/v6"
+REPO_DIR="tetris/v7"
 
 setup_server() {
     echo "Cloning repository..."
