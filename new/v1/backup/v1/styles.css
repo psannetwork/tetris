@@ -1,0 +1,29 @@
+/* 背景・中央配置 */
+body {
+  margin: 0;
+  background: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-family: sans-serif;
+  color: #fff;
+  position: relative;
+}
+
+canvas {
+  background: #111;
+  border: 2px solid #444;
+}
+
+/* ゲームオーバー表示 */
+#gameOver {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: red;
+  font-size: 48px;
+  display: none;
+  pointer-events: none;
+}
