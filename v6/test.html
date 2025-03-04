@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Tetris99</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js" integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/msgpack-lite@0.1.26/dist/msgpack.min.js"></script>
+</head>
+<body>
+    <button onclick="requestUserID()">Get User ID</button>
+    <button onclick="matchRequest()">Match</button>
+    <br>
+    <input id="garbageLines" type="number" placeholder="Garbage Lines">
+    <button onclick="sendGarbage()">Send Garbage</button>
+    <div id="log"></div>
+
+    <script>
+        const socket = io("http://localhost:6000", { transports: ['websocket'] });
+        let userID = null;
+        let roomID = null;
+
+        function requestUserID() {
+            socket.emit('requestUserID');
+        }
+
+        socket.on('receiveUserID', (id) => {
+            userID = id;
+            console.log("User ID:", userID);
+        });
+
+        function matchRequest() {
+            if (userID) {
+                socket.emit('matchRequest', userID);
+            } else {
+                alert("Get User ID first!");
+            }
+        }
+
+        socket.on('matchSuccess', (room) => {
+            roomID = room;
+            console.log("Matched in Room:", roomID);
+        });
+
+        function sendGarbage() {
+            const lines = parseInt(document.getElementById('garbageLines').value);
+            if (roomID && userID && lines) {
+                const data = { roomID, senderID: userID, lines };
+                socket.emit('sendGarbage', msgpack.encode(data)); // msgpack で圧縮
+            }
+        }
+
+        socket.on('receiveGarbage', (data) => {
+            try {
+                const decoded = msgpack.decode(new Uint8Array(data));
+                document.getElementById('log').innerHTML += `<p>Received ${decoded.lines} garbage lines!</p>`;
+            } catch (e) {
+                console.error("Garbageデータのデコードエラー:", e);
+            }
+        });
+
+        socket.on('playerRanked', (data) => {
+            document.getElementById('log').innerHTML += `<p>Player ${data.userID} ranked ${data.rank}!</p>`;
+        });
+
+        socket.on('gameWin', (data) => {
+            alert(data.message);
+        });
+
+        // エラー処理追加
+        socket.on('connect_error', (error) => {
+            console.error("接続エラー:", error);
+        });
+
+    </script>
+</body>
+</html>
