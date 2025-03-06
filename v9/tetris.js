@@ -475,9 +475,10 @@ function lockPiece() {
     previousClearWasB2B = false;
   }
   
-  if (!isValidPosition(currentPiece, 0, 0) && currentPiece.y <= 1) {
-    triggerGameOver();
-  }
+if (!isValidPosition(currentPiece, 0, 0)) {
+  triggerGameOver();
+}
+
 }
 
 
@@ -617,6 +618,10 @@ function draw() {
     }
   }
 
+
+if (!isValidPosition(currentPiece, 0, 1) && currentPiece.y <= 1) {
+  triggerGameOver();
+}
 
 
 
