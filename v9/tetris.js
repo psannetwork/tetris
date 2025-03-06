@@ -5,6 +5,7 @@ const ARR = 50;
 const SD_ARR = 50;
 const MAX_FLOOR_KICKS = 15;
 
+let isKeyOperation = false;
 let previousClearWasB2B = false;
 let isClearing = false;
 let isGameOver = false;
@@ -722,7 +723,7 @@ let lastTime = performance.now(), dropCounter = 0;
 function update(time = performance.now()) {
   if (isGameOver) { draw(); return; }
   if (isGameClear) { draw(); return; }
-
+  isKeyOperation = true;
   let delta = time - lastTime; lastTime = time;
   const now = performance.now();
   if (keys[CONFIG.keyBindings.moveLeft]) {
