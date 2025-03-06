@@ -1,7 +1,7 @@
 
 let keys = {};
 document.addEventListener("keydown", event => {
-
+if (isKeyOperation === true) {
   if (!keys[event.code]) {
     keys[event.code] = { startTime: performance.now(), lastRepeat: performance.now() };
     switch (event.code) {
@@ -32,5 +32,6 @@ document.addEventListener("keydown", event => {
     }
   }
   if (Object.values(CONFIG.keyBindings).includes(event.code) || event.code === "KeyG") event.preventDefault();
+    }
 });
 document.addEventListener("keyup", event => { if (keys[event.code]) delete keys[event.code]; });
