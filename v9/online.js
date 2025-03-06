@@ -71,7 +71,6 @@ function drawGameOver() {
 
 
 function drawCount(count) {
-    draw();
 
   // 既存のキャンバスを半透明の黒でオーバーレイ（暗くする）
   ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; // 50%透明の黒
@@ -282,3 +281,4 @@ socket.on("connect", () => {
   joinRoom();   // ルーム参加などの初期処理
   draw();       // 描画ループ開始
 });
+    draw();
