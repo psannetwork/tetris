@@ -1,28 +1,50 @@
 "use strict";
+
 const io = require("socket.io-client");
 const fs = require("fs");
 const path = require("path");
 
+// 自動再マッチングを行うかどうかのフラグ（true: 再挑戦する、false: 再挑戦しない）
+const AUTO_REMATCH = true;
+
 // =====================
 // ■ Bot/AI 設定
 // =====================
+
+// 穴のペナルティを強化するため、weightHoles, weightBottomHoles を大きめの負数に設定
+const BASE_AI_PARAMETERS = {
+  // 【1】 火力およびライン消去の評価（生存優先のため、ここでは主に参考値）
+  weightLineClear: 1.0,      // その手で消せるライン数（1～2ラインクリア評価）
+  weightTetris: 8.0,         // 4ライン消し（Tetris）の大幅ボーナス
+  weightTSpin: 2.0,          // T‑Spin/T‑Spin Mini成立時の加点
+  weightCombo: 3.5,          // コンボ／Ren連鎖の持続性の評価
+
+  // 【2】 盤面安定性・リスク管理（生存のための重要評価軸）
+  weightAggregateHeight: -0.71, // 各列の高さの合計（低いほうが有利）
+  weightBumpiness: -0.18,       // 隣接列間の段差（凹凸）のペナルティ
+  weightHoles: -1.8,            // 盤面全体の穴の数へのペナルティ（強化）
+  weightBottomHoles: -2.0,      // 盤面下部の穴への追加ペナルティ（強化）
+  weightUpperRisk: -1.0,        // 盤面上部ブロックに対するリスクペナルティ
+
+  // 【3】 戦略技術・先読みと柔軟性（必要に応じて）
+  weightMiddleOpen: 1.9,        // 中央部のオープンスペース評価
+  weightHoldFlexibility: 1.0,   // ホールド活用の柔軟性評価
+  weightNextPiece: 1.5,         // 次ピース連携評価
+
+  // 【4】 位置配置の最適化（配置優先の評価）
+  weightLowerPlacement: 0.7,    // 下部への配置ボーナス
+  weightUpperPlacement: -0.5,   // 上部への配置ペナルティ
+  weightEdgePenalty: -0.2,      // エッジ配置のペナルティ
+
+  // その他
+  lineClearBonus: 1.0,          // ライン消去時の追加ボーナス
+  weightGarbage: 10             // ガーベージ送信用の基本重み
+};
+
 const BOT_COUNT = 30;
 const BOT_MOVE_DELAY = 400;
 const MOVE_ANIMATION_DELAY = 100;
 const SOFT_DROP_DELAY = 100;
-
-const BASE_AI_PARAMETERS = {
-  weightAggregateHeight: -0.510066,
-  weightCompleteLines: 0.760666,
-  weightHoles: -0.35663,
-  weightBumpiness: -0.184483,
-  lineClearBonus: 1.0,
-  weightGarbage: 10,            // 火力（Garbage）評価の基本重み
-  weightWells: -0.5,            // ウェル評価
-  weightRowTransitions: -0.5,   // 行遷移のペナルティ
-  weightColumnTransitions: -0.5,// 列遷移のペナルティ
-  weightHoleDepth: -0.3         // 穴の深さのペナルティ
-};
 
 const SERVER_URL = "https://tetris.psannetwork.net/";
 const dataDir = "./data";
@@ -31,188 +53,47 @@ if (!fs.existsSync(dataDir)) {
 }
 
 // =====================
-// ■ グローバル学習データの操作関数
-// =====================
-
-/**
- * data/main.json からグローバルパラメータを読み込む
- */
-function loadGlobalLearning() {
-  const globalDataFile = path.join(dataDir, "main.json");
-  if (fs.existsSync(globalDataFile)) {
-    try {
-      const content = fs.readFileSync(globalDataFile, "utf8");
-      const globalData = JSON.parse(content);
-      return globalData.globalParameters;
-    } catch (err) {
-      console.error("Error reading global learning file:", err);
-      return null;
-    }
-  }
-  return null;
-}
-
-/**
- * data/main.json のグローバルパラメータをランニング平均で更新する
- */
-function updateGlobalLearning(aiParameters) {
-  const globalDataFile = path.join(dataDir, "main.json");
-  let globalData = {
-    globalCount: 0,
-    globalParameters: { ...BASE_AI_PARAMETERS },
-    patternData: []
-  };
-  try {
-    if (fs.existsSync(globalDataFile)) {
-      const content = fs.readFileSync(globalDataFile, "utf8");
-      globalData = JSON.parse(content);
-    }
-  } catch (err) {
-    console.error("Error reading global learning file:", err);
-  }
-  const count = globalData.globalCount;
-  for (let key in aiParameters) {
-    if (typeof aiParameters[key] === "number") {
-      globalData.globalParameters[key] =
-        (globalData.globalParameters[key] * count + aiParameters[key]) / (count + 1);
-    }
-  }
-  globalData.globalCount = count + 1;
-  fs.writeFileSync(globalDataFile, JSON.stringify(globalData, null, 2));
-}
-
-/**
- * data/main.json から patternData を読み出す
- */
-function loadGlobalPatternData() {
-  const globalDataFile = path.join(dataDir, "main.json");
-  if (fs.existsSync(globalDataFile)) {
-    try {
-      const content = fs.readFileSync(globalDataFile, "utf8");
-      const globalData = JSON.parse(content);
-      return globalData.patternData || [];
-    } catch (err) {
-      console.error("Error reading patternData:", err);
-      return [];
-    }
-  }
-  return [];
-}
-
-/**
- * patternData に新たなエントリーを記録する
- * すでに同じ patternKey があれば、統計情報（平均値、件数）を更新する
- */
-function recordPatternData(patternKey, result) {
-  const globalDataFile = path.join(dataDir, "main.json");
-  let globalData = {
-    globalCount: 0,
-    globalParameters: { ...BASE_AI_PARAMETERS },
-    patternData: []
-  };
-  try {
-    if (fs.existsSync(globalDataFile)) {
-      const content = fs.readFileSync(globalDataFile, "utf8");
-      globalData = JSON.parse(content);
-    }
-  } catch (err) {
-    console.error("Error reading global learning file:", err);
-  }
-  let entry = globalData.patternData.find(e => e.patternKey === patternKey);
-  if (entry) {
-    // 更新：過去の結果との加重平均
-    entry.linesCleared = (entry.linesCleared * entry.count + result.linesCleared) / (entry.count + 1);
-    entry.moveGarbage = (entry.moveGarbage * entry.count + result.moveGarbage) / (entry.count + 1);
-    entry.count++;
-  } else {
-    entry = {
-      patternKey,
-      linesCleared: result.linesCleared,
-      moveGarbage: result.moveGarbage,
-      count: 1
-    };
-    globalData.patternData.push(entry);
-  }
-  fs.writeFileSync(globalDataFile, JSON.stringify(globalData, null, 2));
-}
-
-// =====================
-// ■ ヘルパー関数（盤面パターン計算）
-// =====================
-
-/**
- * 各列の高さ（最上段のブロック位置）を求める
- */
-function getColumnHeights(board) {
-  const cols = board[0].length;
-  const heights = new Array(cols).fill(0);
-  for (let j = 0; j < cols; j++) {
-    for (let i = 0; i < board.length; i++) {
-      if (board[i][j] !== 0) {
-        heights[j] = board.length - i;
-        break;
-      }
-    }
-  }
-  return heights;
-}
-
-/**
- * 盤面と採用した手（ミノ情報）からパターンキーを生成する
- * キーは "type-x-orientation-高さプロファイル" の形式とする
- */
-function computePatternKey(board, piece) {
-  const heights = getColumnHeights(board);
-  return `${piece.type}-${piece.x}-${piece.orientation}-${heights.join(",")}`;
-}
-
-// =====================
 // ■ テトリミノ定義＆ SRS キックテーブル
 // =====================
 const tetrominoes = {
-  I: { base: [[0,0],[1,0],[2,0],[3,0]], spawn: { x: 3, y: 0 } },
-  J: { base: [[0,0],[0,1],[1,1],[2,1]], spawn: { x: 3, y: 0 } },
-  L: { base: [[2,0],[0,1],[1,1],[2,1]], spawn: { x: 3, y: 0 } },
-  O: { base: [[0,0],[1,0],[0,1],[1,1]], spawn: { x: 4, y: 0 } },
-  S: { base: [[1,0],[2,0],[0,1],[1,1]], spawn: { x: 3, y: 0 } },
-  T: { base: [[1,0],[0,1],[1,1],[2,1]], spawn: { x: 3, y: 0 } },
-  Z: { base: [[0,0],[1,0],[1,1],[2,1]], spawn: { x: 3, y: 0 } }
+  I: { base: [[0, 0], [1, 0], [2, 0], [3, 0]], spawn: { x: 3, y: 0 } },
+  J: { base: [[0, 0], [0, 1], [1, 1], [2, 1]], spawn: { x: 3, y: 0 } },
+  L: { base: [[2, 0], [0, 1], [1, 1], [2, 1]], spawn: { x: 3, y: 0 } },
+  O: { base: [[0, 0], [1, 0], [0, 1], [1, 1]], spawn: { x: 4, y: 0 } },
+  S: { base: [[1, 0], [2, 0], [0, 1], [1, 1]], spawn: { x: 3, y: 0 } },
+  T: { base: [[1, 0], [0, 1], [1, 1], [2, 1]], spawn: { x: 3, y: 0 } },
+  Z: { base: [[0, 0], [1, 0], [1, 1], [2, 1]], spawn: { x: 3, y: 0 } }
 };
 
 const srsKick = {
   normal: {
-    "0_L": { newOrientation: 3, offsets: [ { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 } ] },
-    "0_R": { newOrientation: 1, offsets: [ { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 } ] },
-    "90_L": { newOrientation: 0, offsets: [ { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 } ] },
-    "90_R": { newOrientation: 2, offsets: [ { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 } ] },
-    "180_L": { newOrientation: 1, offsets: [ { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 } ] },
-    "180_R": { newOrientation: 3, offsets: [ { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 } ] },
-    "270_L": { newOrientation: 2, offsets: [ { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 } ] },
-    "270_R": { newOrientation: 0, offsets: [ { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 } ] }
+    "0_L": { newOrientation: 3, offsets: [{ x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }] },
+    "0_R": { newOrientation: 1, offsets: [{ x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }] },
+    "90_L": { newOrientation: 0, offsets: [{ x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }] },
+    "90_R": { newOrientation: 2, offsets: [{ x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }] },
+    "180_L": { newOrientation: 1, offsets: [{ x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }] },
+    "180_R": { newOrientation: 3, offsets: [{ x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }] },
+    "270_L": { newOrientation: 2, offsets: [{ x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }] },
+    "270_R": { newOrientation: 0, offsets: [{ x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }] }
   },
   I: {
-    "0_L": { newOrientation: 3, offsets: [ { x: -1, y: 0 }, { x: 2, y: 0 }, { x: -1, y: -2 }, { x: 2, y: 1 } ] },
-    "0_R": { newOrientation: 1, offsets: [ { x: -2, y: 0 }, { x: 1, y: 0 }, { x: -2, y: 1 }, { x: 1, y: -2 } ] },
-    "90_L": { newOrientation: 0, offsets: [ { x: 2, y: 0 }, { x: -1, y: 0 }, { x: 2, y: -1 }, { x: -1, y: 2 } ] },
-    "90_R": { newOrientation: 2, offsets: [ { x: -1, y: 0 }, { x: 2, y: 0 }, { x: -1, y: -2 }, { x: 2, y: 1 } ] },
-    "180_L": { newOrientation: 1, offsets: [ { x: 1, y: 0 }, { x: -2, y: 0 }, { x: 1, y: 2 }, { x: -2, y: -1 } ] },
-    "180_R": { newOrientation: 3, offsets: [ { x: 2, y: 0 }, { x: -1, y: 0 }, { x: 2, y: -1 }, { x: -1, y: 2 } ] },
-    "270_L": { newOrientation: 2, offsets: [ { x: 1, y: 0 }, { x: -2, y: 0 }, { x: -2, y: 1 }, { x: 1, y: -2 } ] },
-    "270_R": { newOrientation: 0, offsets: [ { x: 2, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 2 }, { x: -2, y: -1 } ] }
+    "0_L": { newOrientation: 3, offsets: [{ x: -1, y: 0 }, { x: 2, y: 0 }, { x: -1, y: -2 }, { x: 2, y: 1 }] },
+    "0_R": { newOrientation: 1, offsets: [{ x: -2, y: 0 }, { x: 1, y: 0 }, { x: -2, y: 1 }, { x: 1, y: -2 }] },
+    "90_L": { newOrientation: 0, offsets: [{ x: 2, y: 0 }, { x: -1, y: 0 }, { x: 2, y: -1 }, { x: -1, y: 2 }] },
+    "90_R": { newOrientation: 2, offsets: [{ x: -1, y: 0 }, { x: 2, y: 0 }, { x: -1, y: -2 }, { x: 2, y: 1 }] },
+    "180_L": { newOrientation: 1, offsets: [{ x: 1, y: 0 }, { x: -2, y: 0 }, { x: 1, y: 2 }, { x: -2, y: -1 }] },
+    "180_R": { newOrientation: 3, offsets: [{ x: 2, y: 0 }, { x: -1, y: 0 }, { x: 2, y: -1 }, { x: -1, y: 2 }] },
+    "270_L": { newOrientation: 2, offsets: [{ x: 1, y: 0 }, { x: -2, y: 0 }, { x: -2, y: 1 }, { x: 1, y: -2 }] },
+    "270_R": { newOrientation: 0, offsets: [{ x: 2, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 2 }, { x: -2, y: -1 }] }
   }
 };
 
 // =====================
-// ■ 盤面・ミノ操作の基本関数群
+// ■ 盤面・ミノ操作の基本関数
 // =====================
-
 function createEmptyBoard() {
   const rows = 22, cols = 10;
-  const board = [];
-  for (let r = 0; r < rows; r++) {
-    board.push(new Array(cols).fill(0));
-  }
-  return board;
+  return Array.from({ length: rows }, () => new Array(cols).fill(0));
 }
 
 function getPieceBlocks(piece) {
@@ -337,7 +218,45 @@ function drawBoard(fixedBoard, currentPiece) {
 }
 
 // =====================
-// ■ Tスピン判定＆ Garbage 送信量計算
+// ■ 危険判定（生存モード）
+// =====================
+// 盤面の上5行にブロックがある、または各列の高さの合計が50を超えていれば危険状態とする
+function isDangerous(board) {
+  for (let i = 0; i < 5; i++) {
+    if (board[i].some(cell => cell !== 0)) return true;
+  }
+  let heights = getColumnHeights(board);
+  let aggregate = heights.reduce((sum, h) => sum + h, 0);
+  return aggregate > 50;
+}
+
+// =====================
+// ■ 穴の横アクセス評価
+// =====================
+// 各縦列内で、ブロックの下にできた穴について左右隣が空いているかで評価
+function computeHoleAccessibilityPenalty(board) {
+  let penalty = 0;
+  const rows = board.length;
+  const cols = board[0].length;
+  for (let j = 0; j < cols; j++) {
+    let blockFound = false;
+    for (let i = 0; i < rows; i++) {
+      if (board[i][j] !== 0) {
+        blockFound = true;
+      } else if (blockFound && board[i][j] === 0) {
+        let accessible = false;
+        if (j > 0 && board[i][j - 1] === 0) accessible = true;
+        if (j < cols - 1 && board[i][j + 1] === 0) accessible = true;
+        if (!accessible) penalty += 1;
+        else penalty -= 0.5;
+      }
+    }
+  }
+  return penalty;
+}
+
+// =====================
+// ■ T‑Spin判定と火力算出
 // =====================
 function detectTSpin(piece, board) {
   if (piece.type !== "T" || !piece.rotated) return false;
@@ -358,119 +277,40 @@ function detectTSpin(piece, board) {
   return count >= 3;
 }
 
-function computeMoveGarbage(piece, linesCleared, board, renChain) {
+function computeMoveGarbage(piece, linesCleared, board, renChain, aiParameters) {
   let bonus = 0;
-  if (piece.type === "T" && detectTSpin(piece, board)) {
-    if (linesCleared === 1) bonus = 4;
-    else if (linesCleared === 2) bonus = 8;
-    else if (linesCleared === 3) bonus = 12;
-  } else {
-    if (linesCleared === 1) bonus = 0;
-    else if (linesCleared === 2) bonus = 2;
-    else if (linesCleared === 3) bonus = 4;
-    else if (linesCleared === 4) bonus = 8;
-  }
-  if (renChain >= 2 && renChain <= 3) bonus += 1;
-  else if (renChain >= 4 && renChain <= 5) bonus += 2;
-  else if (renChain >= 6 && renChain <= 7) bonus += 3;
-  else if (renChain >= 8 && renChain <= 10) bonus += 4;
-  else if (renChain >= 11) bonus += 5;
+  const dangerous = isDangerous(board);
+  const heights = getColumnHeights(board);
+  const aggregate = heights.reduce((sum, h) => sum + h, 0);
 
-  const isAllClear = board.every(row => row.every(cell => cell !== 0));
+  if (piece.type === "T" && detectTSpin(piece, board)) {
+    bonus += aiParameters.weightTSpin * (dangerous ? 0.5 : 1);
+  }
+  if (linesCleared === 1) {
+    bonus += aiParameters.weightLineClear;
+  } else if (linesCleared === 2) {
+    bonus += aiParameters.weightLineClear * 2;
+  } else if (linesCleared === 3) {
+    bonus += aiParameters.weightLineClear * 3;
+  } else if (linesCleared === 4) {
+    let tetrisBonus = aiParameters.weightTetris;
+    if (dangerous) tetrisBonus *= 0.5;
+    bonus += tetrisBonus;
+  }
+  if (renChain > 1) {
+    let comboWeight = aiParameters.weightCombo;
+    if (dangerous) comboWeight *= 0.5;
+    bonus += comboWeight * (renChain - 1);
+  }
+  const isAllClear = board.every(row => row.every(cell => cell === 0));
   if (isAllClear) bonus += 10;
   return bonus;
 }
 
 // =====================
-// ■ 新たな評価項目
+// ■ 盤面評価（安定性・リスク・戦略・配置最適化）
 // =====================
-function computeWells(board) {
-  let wells = 0;
-  const rows = board.length;
-  const cols = board[0].length;
-  for (let j = 0; j < cols; j++) {
-    for (let i = 0; i < rows; i++) {
-      if (board[i][j] === 0) {
-        const leftFilled = (j === 0) || (board[i][j - 1] !== 0);
-        const rightFilled = (j === cols - 1) || (board[i][j + 1] !== 0);
-        if (leftFilled && rightFilled) {
-          let depth = 0;
-          let k = i;
-          while (k < rows && board[k][j] === 0) {
-            depth++;
-            k++;
-          }
-          wells += depth;
-          i = k - 1;
-        }
-      }
-    }
-  }
-  return wells;
-}
-
-function computeRowTransitions(board) {
-  let transitions = 0;
-  const width = board[0].length;
-  for (let i = 0; i < board.length; i++) {
-    let row = board[i];
-    let prev = 1; // 左側の壁は埋まっていると仮定
-    for (let j = 0; j < width; j++) {
-      if (row[j] === 0 && prev !== 0) transitions++;
-      else if (row[j] !== 0 && prev === 0) transitions++;
-      prev = row[j];
-    }
-    if (prev === 0) transitions++; // 右側の壁も考慮
-  }
-  return transitions;
-}
-
-function computeColumnTransitions(board) {
-  let transitions = 0;
-  const height = board.length;
-  const width = board[0].length;
-  for (let j = 0; j < width; j++) {
-    let prev = 1; // 上側の壁は埋まっていると仮定
-    for (let i = 0; i < height; i++) {
-      if (board[i][j] === 0 && prev !== 0) transitions++;
-      else if (board[i][j] !== 0 && prev === 0) transitions++;
-      prev = board[i][j];
-    }
-    if (prev === 0) transitions++; // 下側の壁も考慮
-  }
-  return transitions;
-}
-
-function computeHoleDepth(board) {
-  let depth = 0;
-  const height = board.length;
-  const width = board[0].length;
-  for (let j = 0; j < width; j++) {
-    let top = -1;
-    for (let i = 0; i < height; i++) {
-      if (board[i][j] !== 0) {
-        top = i;
-        break;
-      }
-    }
-    if (top !== -1) {
-      for (let i = top + 1; i < height; i++) {
-        if (board[i][j] === 0) depth += (i - top);
-      }
-    }
-  }
-  return depth;
-}
-
-// =====================
-// ■ ヒューリスティック評価と候補手探索
-// =====================
-
-/**
- * 各候補手に対して盤面評価スコアを計算し、
- * global patternData に基づくボーナスも加味する
- */
-function evaluateBoard(board, parameters) {
+function getColumnHeights(board) {
   const cols = board[0].length;
   let heights = new Array(cols).fill(0);
   for (let j = 0; j < cols; j++) {
@@ -481,11 +321,19 @@ function evaluateBoard(board, parameters) {
       }
     }
   }
-  const aggregateHeight = heights.reduce((sum, h) => sum + h, 0);
+  return heights;
+}
+
+function computeBumpiness(heights) {
   let bumpiness = 0;
-  for (let j = 0; j < cols - 1; j++) {
+  for (let j = 0; j < heights.length - 1; j++) {
     bumpiness += Math.abs(heights[j] - heights[j + 1]);
   }
+  return bumpiness;
+}
+
+function computeHoles(board) {
+  const cols = board[0].length;
   let holes = 0;
   for (let j = 0; j < cols; j++) {
     let blockFound = false;
@@ -494,29 +342,119 @@ function evaluateBoard(board, parameters) {
       else if (blockFound && board[i][j] === 0) holes++;
     }
   }
-  let completeLines = 0;
-  for (let i = 0; i < board.length; i++) {
-    if (board[i].every(cell => cell !== 0)) completeLines++;
-  }
-  const wells = computeWells(board);
-  const rowTransitions = computeRowTransitions(board);
-  const columnTransitions = computeColumnTransitions(board);
-  const holeDepth = computeHoleDepth(board);
-
-  return parameters.weightAggregateHeight * aggregateHeight +
-         parameters.weightCompleteLines * completeLines +
-         parameters.weightHoles * holes +
-         parameters.weightBumpiness * bumpiness +
-         parameters.weightWells * wells +
-         parameters.weightRowTransitions * rowTransitions +
-         parameters.weightColumnTransitions * columnTransitions +
-         parameters.weightHoleDepth * holeDepth +
-         (completeLines * parameters.lineClearBonus);
+  return holes;
 }
 
-/**
- * 採用可能な候補手をすべて列挙する
- */
+function computeBottomHoles(board) {
+  let bottomHoles = 0;
+  const startRow = board.length - 5;
+  const cols = board[0].length;
+  for (let i = startRow; i < board.length; i++) {
+    for (let j = 0; j < cols; j++) {
+      if (board[i][j] === 0) {
+        let blockAbove = false;
+        for (let k = 0; k < i; k++) {
+          if (board[k][j] !== 0) { blockAbove = true; break; }
+        }
+        if (blockAbove) bottomHoles++;
+      }
+    }
+  }
+  return bottomHoles;
+}
+
+function computeUpperRisk(board) {
+  let risk = 0;
+  const upperRows = 4;
+  for (let i = 0; i < upperRows; i++) {
+    for (let j = 0; j < board[0].length; j++) {
+      if (board[i][j] !== 0) {
+        risk += (upperRows - i);
+      }
+    }
+  }
+  return risk;
+}
+
+function evaluateMiddleOpen(board, parameters) {
+  if (isDangerous(board)) return 0;
+  let bonus = 0;
+  const centerCols = [4, 5];
+  for (let i = 0; i < Math.floor(board.length / 2); i++) {
+    for (let j of centerCols) {
+      if (board[i][j] === 0) bonus += parameters.weightMiddleOpen;
+    }
+  }
+  return bonus;
+}
+
+function computePlacementBonus(placement, parameters) {
+  let bonus = 0;
+  const blocks = getPieceBlocks(placement);
+  let totalRow = 0, count = 0;
+  for (let block of blocks) {
+    const row = placement.y + block[1];
+    totalRow += row;
+    count++;
+    if (row < 4) bonus += parameters.weightUpperPlacement;
+    const col = placement.x + block[0];
+    if (col === 0 || col === 9) bonus += parameters.weightEdgePenalty;
+  }
+  const avgRow = totalRow / count;
+  bonus += parameters.weightLowerPlacement * avgRow;
+  return bonus;
+}
+
+function evaluateBoard(board, parameters) {
+  const dangerous = isDangerous(board);
+  const heights = getColumnHeights(board);
+  const aggregateHeight = heights.reduce((sum, h) => sum + h, 0);
+  const bumpiness = computeBumpiness(heights);
+  const holes = computeHoles(board);
+  const bottomHoles = computeBottomHoles(board);
+  const upperRisk = computeUpperRisk(board);
+  const maxHeight = Math.max(...heights);
+  let score = 0;
+  
+  if (dangerous) {
+    score += parameters.weightAggregateHeight * aggregateHeight * 1.5;
+    score += parameters.weightBumpiness * bumpiness * 1.5;
+    score += parameters.weightHoles * holes * 2;
+    score += parameters.weightBottomHoles * bottomHoles * 2;
+    score += parameters.weightUpperRisk * upperRisk * 2;
+    score -= 0.5 * maxHeight;
+  } else {
+    score += parameters.weightAggregateHeight * aggregateHeight;
+    score += parameters.weightBumpiness * bumpiness;
+    score += parameters.weightHoles * holes;
+    score += parameters.weightBottomHoles * bottomHoles;
+    score += parameters.weightUpperRisk * upperRisk;
+    score += evaluateMiddleOpen(board, parameters);
+    score += parameters.weightNextPiece * countTSpinOpportunities(board);
+  }
+  // 追加：穴の横アクセス評価を反映
+  score += computeHoleAccessibilityPenalty(board);
+  return score;
+}
+
+function countTSpinOpportunities(board) {
+  let count = 0;
+  const Tpiece = { type: "T", base: tetrominoes["T"].base, x: tetrominoes["T"].spawn.x, y: tetrominoes["T"].spawn.y, orientation: 0, rotated: false };
+  for (let orientation = 0; orientation < 4; orientation++) {
+    let testPiece = { ...Tpiece, orientation };
+    for (let x = -3; x < 10; x++) {
+      let candidate = { ...testPiece, x: x, y: testPiece.y };
+      if (!isValidPosition(candidate, board, 0, 0)) continue;
+      let finalCandidate = hardDrop({ ...candidate }, board);
+      if (detectTSpin(finalCandidate, board)) count++;
+    }
+  }
+  return count;
+}
+
+// =====================
+// ■ 候補手探索と最善手選択
+// =====================
 function getAllPlacements(board, piece) {
   const placements = [];
   for (let orientation = 0; orientation < 4; orientation++) {
@@ -525,76 +463,51 @@ function getAllPlacements(board, piece) {
       let candidate = { ...testPiece, x: x, y: testPiece.y };
       if (!isValidPosition(candidate, board, 0, 0)) continue;
       let finalCandidate = hardDrop({ ...candidate }, board);
-      if (finalCandidate.type === "T" && detectTSpin(finalCandidate, board)) {
-        finalCandidate.tspinBonus = 2;
-      } else {
-        finalCandidate.tspinBonus = 0;
-      }
+      finalCandidate.tspinBonus = (finalCandidate.type === "T" && detectTSpin(finalCandidate, board)) ? 2 : 0;
       placements.push(finalCandidate);
     }
   }
   return placements;
 }
 
-/**
- * 各候補手に対し、シミュレーション後の盤面から patternKey を生成し、
- * global patternData の統計情報から成功ボーナスを加える
- */
 function findBestMove(board, currentPiece, aiParameters, socket, botStrength) {
   const placements = getAllPlacements(board, currentPiece);
   if (placements.length === 0) return null;
   let bestScore = -Infinity, bestMove = null;
   const FIREPOWER_THRESHOLD = 20;
   const currentAttack = socket.gameStats.totalAttack;
-
-  // global patternData を一括読み込み
-  const globalPatterns = loadGlobalPatternData();
-  // ボーナスにかける係数
-  const PATTERN_BONUS_FACTOR = 2;
-
+  
   for (let placement of placements) {
     const simulatedBoard = board.map(row => row.slice());
     mergePiece(placement, simulatedBoard);
     const linesCleared = clearLines(simulatedBoard);
     placement.isTSpin = (placement.type === "T" && detectTSpin(placement, simulatedBoard));
-    const garbagePotential = computeMoveGarbage(placement, linesCleared, simulatedBoard, simulatedBoard.renChain || 0);
+    const garbagePotential = computeMoveGarbage(placement, linesCleared, simulatedBoard, socket.gameStats.renChain, aiParameters);
     let dynamicGarbageWeight = aiParameters.weightGarbage;
-    if (currentAttack > FIREPOWER_THRESHOLD) {
-      dynamicGarbageWeight *= 2;
-    } else {
-      dynamicGarbageWeight *= 0.5;
-    }
+    if (currentAttack > FIREPOWER_THRESHOLD) dynamicGarbageWeight *= 2;
+    else dynamicGarbageWeight *= 0.5;
     let score = evaluateBoard(simulatedBoard, aiParameters) + (garbagePotential * dynamicGarbageWeight);
+    score += computePlacementBonus(placement, aiParameters);
     if (placement.type === "T" && placement.isTSpin) score += placement.tspinBonus;
-
-    // パターンデータボーナスの反映：候補盤面から patternKey を作成
-    const candidateKey = computePatternKey(simulatedBoard, placement);
-    const matchingPatterns = globalPatterns.filter(e => e.patternKey === candidateKey);
-    if (matchingPatterns.length > 0) {
-      // 平均的な成功指標（例：ラインクリアと火力の合計）に係数をかけてボーナスとする
-      let sumMetric = 0;
-      matchingPatterns.forEach(e => {
-        sumMetric += (e.linesCleared + e.moveGarbage);
-      });
-      const avgMetric = sumMetric / matchingPatterns.length;
-      score += avgMetric * PATTERN_BONUS_FACTOR;
+    if (socket.lastMove && placement.x === socket.lastMove.x && placement.orientation === socket.lastMove.orientation) {
+      score -= aiParameters.weightCombo;
     }
-
     if (score > bestScore) {
       bestScore = score;
       bestMove = placement;
     }
   }
+  
+  if (bestMove) socket.lastMove = { x: bestMove.x, orientation: bestMove.orientation };
   let errorChance = (100 - botStrength) / 400;
-  if (Math.random() < errorChance) {
-    bestMove = placements[Math.floor(Math.random() * placements.length)];
-  }
+  if (Math.random() < errorChance) bestMove = placements[Math.floor(Math.random() * placements.length)];
   return bestMove;
 }
 
 // =====================
-// ■ 学習処理＆永続化
+// ■ 学習処理とパラメータ永続化
 // =====================
+// ゲーム終了後、盤面の穴の状況に応じて穴ペナルティを更新し、Botがプレイするたびに強化
 function updateLearning(socket, botIndex) {
   const stats = socket.gameStats;
   const targetMoves = 300;
@@ -603,16 +516,20 @@ function updateLearning(socket, botIndex) {
   const learningRate = 0.01;
   const survivalFactor = (targetMoves - stats.moves) / targetMoves;
   const attackFactor = (targetAttack - averageAttack) / targetAttack;
-
+  
   socket.aiParameters.weightAggregateHeight -= learningRate * survivalFactor;
   socket.aiParameters.weightGarbage += learningRate * attackFactor;
-
-  // 個別Botの学習結果を保存
+  
+  // 追加：盤面の穴数の目標との差分に応じて穴ペナルティを更新（目標：全体3、下部1）
+  const currentHoles = computeHoles(socket.currentBoard);
+  const currentBottomHoles = computeBottomHoles(socket.currentBoard);
+  const targetHoles = 3;
+  const targetBottomHoles = 1;
+  socket.aiParameters.weightHoles -= learningRate * (currentHoles - targetHoles);
+  socket.aiParameters.weightBottomHoles -= learningRate * (currentBottomHoles - targetBottomHoles);
+  
   const filename = path.join(dataDir, `bot_${botIndex}.json`);
   fs.writeFileSync(filename, JSON.stringify(socket.aiParameters, null, 2));
-
-  // グローバル学習データも更新
-  updateGlobalLearning(socket.aiParameters);
 }
 
 // =====================
@@ -639,9 +556,7 @@ async function gameLoop(socket, botIndex) {
       socket.emit("BoardStatus", { UserID: socket.id, board: drawBoard(board, piece) });
       await delay(MOVE_ANIMATION_DELAY);
     }
-    if (piece.type === "T" && bestMove.isTSpin) {
-      await delay(50);
-    }
+    if (piece.type === "T" && bestMove.isTSpin) await delay(50);
     if (bestMove.y - piece.y >= 5) {
       piece.y = bestMove.y;
       socket.emit("BoardStatus", { UserID: socket.id, board: drawBoard(board, piece) });
@@ -650,90 +565,66 @@ async function gameLoop(socket, botIndex) {
       socket.emit("BoardStatus", { UserID: socket.id, board: drawBoard(board, piece) });
     }
   }
-
+  
   let currentBoard = createEmptyBoard();
   socket.currentBoard = currentBoard;
   socket.gameStats = { totalCleared: 0, moves: 0, totalAttack: 0, renChain: 0 };
-
+  
   let currentPiece = spawnPiece();
-
+  
   while (true) {
-    if (!isValidPosition(currentPiece, currentBoard, 0, 0)) {
-      break;
-    }
+    if (!isValidPosition(currentPiece, currentBoard, 0, 0)) break;
+    
     const bestMove = findBestMove(currentBoard, currentPiece, socket.aiParameters, socket, socket.botStrength);
-    if (bestMove) {
-      await animateMove(currentPiece, bestMove, currentBoard);
-    } else {
-      hardDrop(currentPiece, currentBoard);
-    }
-    // ここで採用した手を盤面に反映
+    if (bestMove) await animateMove(currentPiece, bestMove, currentBoard);
+    else hardDrop(currentPiece, currentBoard);
+    
     mergePiece(currentPiece, currentBoard);
-    // 盤面の状態を記録するため、クリア前の状態を patternKey として作成
-    const patternKey = computePatternKey(currentBoard, currentPiece);
-
     const cleared = clearLines(currentBoard);
     socket.gameStats.totalCleared += cleared;
     socket.gameStats.moves++;
-    if (cleared > 0) {
-      socket.gameStats.renChain++;
-    } else {
-      socket.gameStats.renChain = 0;
-    }
-    const moveGarbage = computeMoveGarbage(currentPiece, cleared, currentBoard, socket.gameStats.renChain);
+    socket.gameStats.renChain = (cleared > 0) ? socket.gameStats.renChain + 1 : 0;
+    const moveGarbage = computeMoveGarbage(currentPiece, cleared, currentBoard, socket.gameStats.renChain, socket.aiParameters);
     socket.gameStats.totalAttack += moveGarbage;
-    if (moveGarbage > 0) {
-      socket.emit("SendGarbage", { targetId: null, lines: moveGarbage });
-    }
+    if (moveGarbage > 0) socket.emit("SendGarbage", { targetId: null, lines: moveGarbage });
     socket.emit("BoardStatus", { UserID: socket.id, board: drawBoard(currentBoard, null) });
     
-    // --- パターンデータの記録 ---
-    // 実際にこの手で得た結果を patternData として記録（成功例／失敗例）
-    const resultData = {
-      linesCleared: cleared,
-      moveGarbage: moveGarbage
-    };
-    recordPatternData(patternKey, resultData);
-    // -----------------------------
-
-    currentPiece = spawnPiece();
+    let nextPiece = spawnPiece();
+    if (!isValidPosition(nextPiece, currentBoard, 0, 0)) break;
+    currentPiece = nextPiece;
     socket.currentBoard = currentBoard;
-    if (currentBoard[0].some(cell => cell !== 0)) {
-      break;
-    }
     await delay(BOT_MOVE_DELAY);
   }
-
+  
   socket.emit("PlayerGameStatus", "gameover");
   updateLearning(socket, botIndex);
   socket.emit("BoardStatus", { UserID: socket.id, board: drawBoard(currentBoard, null) });
   await delay(100);
+  // 各 Bot ごとにソケットを切断してから再生成する
   socket.disconnect();
-  setTimeout(() => {
-    createBot(botIndex, socket.botStrength, socket.aiParameters);
-  }, 10000);
+  if (AUTO_REMATCH) {
+    setTimeout(() => {
+      createBot(botIndex, socket.botStrength, socket.aiParameters);
+    }, 10000);
+  }
 }
 
 // =====================
 // ■ Multi-Bot サポート
 // =====================
-
 function createBot(botIndex, strength, aiParameters) {
+  // Bot ごとに独立した Socket を生成
   const socket = io(SERVER_URL, { reconnection: false });
   const botStrength = (typeof strength === "number") ? strength : Math.floor(Math.random() * 101);
   socket.botStrength = botStrength;
-  // 起動時は、引数で渡されなければグローバル学習データを優先して読み込む
-  const globalAI = loadGlobalLearning();
-  socket.aiParameters = aiParameters ? { ...aiParameters } : (globalAI ? { ...globalAI } : { ...BASE_AI_PARAMETERS });
-
+  socket.aiParameters = aiParameters ? { ...aiParameters } : { ...BASE_AI_PARAMETERS };
+  
   socket.on("connect", () => {
     socket.emit("matching");
   });
-
+  
   socket.on("roomInfo", (data) => {});
-
   socket.on("CountDown", (data) => {});
-
   socket.on("ReceiveGarbage", ({ from, lines }) => {
     const numLines = parseInt(lines, 10) || 0;
     if (socket.currentBoard) {
@@ -746,11 +637,8 @@ function createBot(botIndex, strength, aiParameters) {
       }
     }
   });
-
   socket.on("disconnect", (reason) => {});
-
   socket.on("error", (err) => {});
-
   socket.on("StartGame", () => {
     socket.currentBoard = createEmptyBoard();
     socket.gameStats = { totalCleared: 0, moves: 0, totalAttack: 0, renChain: 0 };
@@ -758,7 +646,6 @@ function createBot(botIndex, strength, aiParameters) {
   });
 }
 
-// Bot を複数起動
 for (let i = 0; i < BOT_COUNT; i++) {
   createBot(i + 1);
 }
