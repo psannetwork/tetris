@@ -62,24 +62,7 @@ function removeFlashingAttack(amount) {
 
 
 
-// Process the garbage bar:
-// If the bar is accumulated, remove as much as possible from the bar (from bottom).
-// If firepower exceeds accumulation or bar is empty, call sendGarbage() with the remainder.
-function processGarbageBar(firepower) {
-  let accumulated = getAttackBarSum();
-  if (accumulated > 0) {
-    let subtract = Math.min(accumulated, firepower);
-    removeAttackBar(subtract);
-    let remainder = firepower - subtract;
-    if (remainder > 0) {
-      sendGarbage(null, remainder);
-    }
-  } else {
-    sendGarbage(null, firepower);
-  }
-}
 
-// Replace the calculateFirepower function with the updated version below:
 function calculateFirepower(clearType, btb, ren, perfectClear, targetCount) {
   if (perfectClear) return 10;
   let base = 0;
@@ -96,18 +79,19 @@ function calculateFirepower(clearType, btb, ren, perfectClear, targetCount) {
   }
   let btbBonus = btb ? 1 : 0;
   let renBonus = 0;
-  if (ren <= 1)
+  if (ren <= 1) {
     renBonus = 0;
-  else if (ren === 2 || ren === 3)
+  } else if (ren >= 2 && ren <= 3) {
     renBonus = 1;
-  else if (ren === 4 || ren === 5)
+  } else if (ren >= 4 && ren <= 5) {
     renBonus = 2;
-  else if (ren === 6 || ren === 7)
+  } else if (ren >= 6 && ren <= 7) {
     renBonus = 3;
-  else if (ren === 8 || ren === 9 || ren === 10)
+  } else if (ren >= 8 && ren <= 10) {
     renBonus = 4;
-  else if (ren >= 11)
+  } else if (ren >= 11) {
     renBonus = 5;
+  }
   return base + btbBonus + renBonus;
 }
 
