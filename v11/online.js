@@ -30,17 +30,22 @@ let isRanking = null;
         });
 
 // ランキング情報受信時（ゲームオーバー状態の更新）
+
+let RankMap = null;
 socket.on("ranking", ({ ranking, yourRankMap }) => {
   console.log("📊 受け取ったランキングデータ:", ranking);
   console.log("📌 プレイヤー別順位:", yourRankMap);
 
   // 自分の順位処理はそのまま…
   const myRank = yourRankMap[socket.id];
+        isRanking = myRank;
+
   if (myRank !== null) {
     console.log(`🏆 あなたの順位は ${myRank} 位です！`);
     isRanking = myRank;
+     RankMap = yourRankMap;
     if (myRank !== 1) {
-      drawGameOver();
+      triggerGameOver(myRank);
     }
     if (myRank === 1) {
       isGameClear = true;
@@ -54,19 +59,107 @@ socket.on("ranking", ({ ranking, yourRankMap }) => {
     gameOverStatus[userId] = yourRankMap[userId] !== null;
   }
 });
+
+
 function drawGameOver() {
-  // ゲームオーバーの描画処理
+  // 背景を半透明の黒で描画
   ctx.fillStyle = "rgba(0,0,0,0.6)";
   ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+  // GAME OVER と自分の順位の描画（isRankingがnullなら「ランキング取得中」と表示）
   ctx.fillStyle = "#FF0000";
   ctx.font = "bold 50px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(`GAME OVER`, canvasElement.width / 2, canvasElement.height / 2);
-  
+  const rankDisplay = (isRanking !== null) ? isRanking : "ランキング取得中";
+  const centerX = canvasElement.width / 2;
+  const centerY = canvasElement.height / 2;
+  ctx.fillText("GAME OVER", centerX, centerY - 30);
+  ctx.fillText(`Rank: ${rankDisplay}`, centerX, centerY + 30);
+
   // ゲームオーバー時に状態を送信
   socket.emit("PlayerGameStatus", "gameover");
-}
 
+  // リザルト（ランキング）パネルの描画
+  const panelX = canvasElement.width * 0.1;
+  const panelY = canvasElement.height * 0.1;
+  const panelWidth = canvasElement.width * 0.8;
+  const panelHeight = canvasElement.height * 0.7;
+  ctx.fillStyle = "rgba(0,0,0,0.8)";
+  ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+
+  // タイトルの描画
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "bold 30px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("Ranking", panelX + 20, panelY + 40);
+
+  // 取得中かどうか判定して描画
+  if (RankMap === null) {
+    ctx.font = "20px sans-serif";
+    ctx.fillText("ランキング取得中...", panelX + 20, panelY + 80);
+  } else {
+    // RankMap の各プレイヤーの順位情報を配列にまとめる
+    // 例: { "player1": 8, "player2": 9, "player3": 7, "player4": null, ... }
+    const rankingEntries = [];
+    for (const playerId in RankMap) {
+      rankingEntries.push({
+        playerId: playerId,
+        rank: RankMap[playerId]
+      });
+    }
+
+    // 自分のプレイヤーID（ここでは socket.id を使用）
+    const myPlayerId = socket.id;
+
+    // 数値があるエントリーは昇順（数値が小さいほど上位）に、null のエントリーは後ろに表示
+    rankingEntries.sort((a, b) => {
+      if (a.rank === null && b.rank === null) return 0;
+      if (a.rank === null) return 1;
+      if (b.rank === null) return -1;
+      return a.rank - b.rank;
+    });
+
+    // 各エントリーをリストとして描画
+    ctx.font = "20px sans-serif";
+    const lineHeight = 30;
+    let currentY = panelY + 80;
+    rankingEntries.forEach((entry, index) => {
+      // まだ値が取得できていなければ「取得中」と表示
+      const displayRank = (entry.rank !== null) ? entry.rank : "取得中";
+      // 自分のエントリーはハイライト（例：黄色）
+      if (entry.playerId === myPlayerId) {
+        ctx.fillStyle = "#FFFF00";
+      } else {
+        ctx.fillStyle = "#FFFFFF";
+      }
+      ctx.fillText(
+        `${index + 1}. Player: ${entry.playerId} - Rank: ${displayRank}`,
+        panelX + 20,
+        currentY
+      );
+      currentY += lineHeight;
+    });
+  }
+
+  // 取得中の状態があれば、1秒後に再描画して最新情報を反映
+  let needRefresh = false;
+  if (isRanking === null) {
+    needRefresh = true;
+  }
+  if (RankMap === null) {
+    needRefresh = true;
+  } else {
+    for (const playerId in RankMap) {
+      if (RankMap[playerId] === null) {
+        needRefresh = true;
+        break;
+      }
+    }
+  }
+  if (needRefresh) {
+    setTimeout(drawGameOver, 1000);
+  }
+}
 
 
 
@@ -200,6 +293,7 @@ function drawMiniBoard(x, y, boardWidth, boardHeight, boardID) {
   miniBoardsData.push({ x, y, width: boardWidth, height: boardHeight, id: boardID });
 }
 
+
 function drawSpecificMiniBoard(userID, boardID, boardState) {
   const boardData = miniBoardsData.find(board => board.id === boardID);
   if (!boardData) {
@@ -208,7 +302,25 @@ function drawSpecificMiniBoard(userID, boardID, boardState) {
   }
   const { x, y, width, height } = boardData;
   
-  // テトリス各ブロックの色定義
+  // Clear board area and draw the border.
+  ctx.clearRect(x, y, width, height);
+  ctx.strokeStyle = "#FF0000";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, width, height);
+  
+  // If the user has reached game over, clear the board (skip drawing blocks) and simply display the "KO" overlay.
+  if (gameOverStatus[userID]) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(x, y, width, height);
+    ctx.fillStyle = "#FF0000";
+    ctx.font = "bold 20px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("KO", x + width / 2, y + height / 2);
+    return;
+  }
+  
+  // Define block colors.
   const blockColors = {
     "I": "#00FFFF",
     "O": "#FFFF00",
@@ -219,39 +331,21 @@ function drawSpecificMiniBoard(userID, boardID, boardState) {
     "S": "#00FF00"
   };
   
-  // miniBoard 内の描画領域をクリアし、枠を描画
-  ctx.clearRect(x, y, width, height);
-  ctx.strokeStyle = "#FF0000";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x, y, width, height);
-  
-  // boardState に基づいて各セルを描画
-  for (let row = 0; row < boardState.length; row++) {
-    for (let col = 0; col < boardState[row].length; col++) {
-      const block = boardState[row][col];
-      if (block !== 0) { // 空セルでなければ描画
-        const blockX = x + col * miniCellSize;
-        const blockY = y + row * miniCellSize;
-        const blockColor = blockColors[block] || "#000000";
-        ctx.fillStyle = blockColor;
-        ctx.fillRect(blockX, blockY, miniCellSize, miniCellSize);
-        ctx.strokeStyle = "#FFFFFF";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(blockX, blockY, miniCellSize, miniCellSize);
-      }
+// Draw each non-empty block without the white border.
+for (let row = 0; row < boardState.length; row++) {
+  for (let col = 0; col < boardState[row].length; col++) {
+    const block = boardState[row][col];
+    if (block !== 0) {
+      const blockX = x + col * miniCellSize;
+      const blockY = y + row * miniCellSize;
+      // Fallback color is now gray (#808080) instead of black.
+      const blockColor = blockColors[block] || "#808080";
+      ctx.fillStyle = blockColor;
+      ctx.fillRect(blockX, blockY, miniCellSize, miniCellSize);
     }
   }
-  
-  // 該当ユーザーがゲームオーバーなら、「KO」をオーバーレイで表示
-  if (gameOverStatus[userID]) {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.fillRect(x, y, width, height);
-    ctx.fillStyle = "#FF0000";
-    ctx.font = "bold 20px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("KO", x + width / 2, y + height / 2);
-  }
+}
+
 }
 
 
@@ -284,20 +378,23 @@ socket.on("connect", () => {
 });
 
 
+let connectionError = false;
+
+// (b) In the window blur event listener, set the new flag and call drawConnectError:
 window.addEventListener("blur", () => {
     console.log("ページがフォーカスを失いました");
     if (socket) {
         socket.disconnect(); // ソケット切断
         console.log("Socket.io 接続を切断しました");
+        connectionError = true;
         drawConnectError();
     }
 });
 
 function drawConnectError() {
-        draw();
-
-  // 既存のキャンバスを半透明の黒でオーバーレイ（暗くする）
-  ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; // 50%透明の黒
+  // Do not call draw() here so that the error message remains visible.
+  // Draw an overlay on the existing canvas:
+  ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; // 50% transparent black
   ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
   
   const attackBarWidth = 30, gap = 20;
@@ -306,17 +403,15 @@ function drawConnectError() {
   const totalWidth = attackBarWidth + gap + boardWidth;
   const startX = (canvasElement.width - totalWidth) / 2;
   const attackBarX = startX;
-  const boardX = startX + attackBarWidth + gap;
   const boardY = (canvasElement.height - boardHeight) / 2;
   
   ctx.strokeStyle = '#000';
   ctx.strokeRect(attackBarX, boardY, attackBarWidth, boardHeight);
-
-  // カウントダウンの描画
-  ctx.fillStyle = "#FFF"; // 文字の色を白に
-  ctx.font = "bold 40px Arial"; // 大きくて太いフォント
+  
+  // Draw error message
+  ctx.fillStyle = "#FFF"; // White text
+  ctx.font = "bold 40px Arial";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  // キャンバスの中央にカウントを描画
   ctx.fillText("通信エラーが発生しました", canvasElement.width / 2, canvasElement.height / 2);
 }
