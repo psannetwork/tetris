@@ -66,6 +66,7 @@ function removeFlashingAttack(amount) {
 function calculateFirepower(clearType, btb, ren, perfectClear, targetCount) {
   if (perfectClear) return 10;
   let base = 0;
+  console.log(ren);
   switch (clearType) {
     case "single": base = 0; break;
     case "double": base = 1; break;
@@ -79,17 +80,17 @@ function calculateFirepower(clearType, btb, ren, perfectClear, targetCount) {
   }
   let btbBonus = btb ? 1 : 0;
   let renBonus = 0;
-  if (ren <= 1) {
+  if (ren <= 0) {
     renBonus = 0;
-  } else if (ren >= 2 && ren <= 3) {
+  } else if (ren >= 1 && ren <= 2) {
     renBonus = 1;
-  } else if (ren >= 4 && ren <= 5) {
+  } else if (ren >= 3 && ren <= 4) {
     renBonus = 2;
-  } else if (ren >= 6 && ren <= 7) {
+  } else if (ren >= 5 && ren <= 6) {
     renBonus = 3;
-  } else if (ren >= 8 && ren <= 10) {
+  } else if (ren >= 7 && ren <= 9) {
     renBonus = 4;
-  } else if (ren >= 11) {
+  } else if (ren >= 10) {
     renBonus = 5;
   }
   return base + btbBonus + renBonus;
@@ -408,11 +409,14 @@ function lockPiece() {
   for (let r = 0; r < boardRows; r++) {
     if (board[r].every(c => c !== 0)) lines.push(r);
   }
-  const ren = lockedPiece.combo || 0;
-  let btb = (lockedPiece.type === "T" || lines.length === 4) ? previousClearWasB2B : false;
   
+  // Calculate ren (combo). If lines are cleared, increment the previous combo.
+  let ren = lockedPiece.combo || 0;
   if (lines.length) {
-    // ライン消去が発生した場合
+    ren = (lockedPiece.combo || 0) + 1;
+  let btb = (lockedPiece.type === "T" || lines.length === 4) ? previousClearWasB2B : false;
+    
+    // Line clear effect
     isClearing = true;
     triggerLineClearEffect(lines);
     setTimeout(() => {
@@ -427,29 +431,28 @@ function lockPiece() {
       }
       score += pts;
       linesCleared += lines.length;
+      
       let clearType;
       if (lockedPiece.type === "T" && tSpin.detected)
         clearType = tSpin.mini ? "tsmini" : (lines.length === 1 ? "tsingle" : lines.length === 2 ? "tsdouble" : "tstriple");
       else
         clearType = lines.length === 1 ? "single" : lines.length === 2 ? "double" : lines.length === 3 ? "triple" : lines.length === 4 ? "tetris" : "none";
       
-      let firepower = sendFirepower(clearType, btb, lockedPiece.combo, false, 0);
-      
-      // ★ ライン消去があった場合は flashing garbage は処理しない ★
-      // (processFlashingGarbage(); を削除)
-      
+      let firepower = sendFirepower(clearType, btb, ren, false, 0);
       processGarbageBar(firepower);
+      
       currentPiece = nextPieces.shift();
       currentPiece.lockDelay = 0;
       nextPieces.push(getNextPieceFromBag());
       holdUsed = false;
       previousClearWasB2B = (lockedPiece.type === "T" || lines.length === 4);
-      // ライン消去の場合はコンボはリセット
-      currentPiece.combo = 0;
+      
+      // Set the combo for the next piece to the updated ren value.
+      currentPiece.combo = ren;
       isClearing = false;
     }, CONFIG.effects.lineClearDuration);
   } else {
-    // ライン消去がなかった場合のみ、flashing garbage を処理する
+    // No lines cleared? Reset the combo.
     currentPiece = nextPieces.shift();
     currentPiece.lockDelay = 0;
     nextPieces.push(getNextPieceFromBag());
@@ -458,8 +461,6 @@ function lockPiece() {
     currentPiece.combo = 0;
     previousClearWasB2B = false;
   }
-  
-
 }
 
 
@@ -705,9 +706,16 @@ function tetrominoTypeToIndex(type) {
 }
 
 let lastTime = performance.now(), dropCounter = 0;
+
 function update(time = performance.now()) {
+  if (connectionError) {
+    drawConnectError();
+    requestAnimationFrame(update);
+    return;
+  }
   if (isGameOver) { draw(); return; }
   if (isGameClear) { draw(); return; }
+
   isKeyOperation = true;
   let delta = time - lastTime; lastTime = time;
   const now = performance.now();
@@ -755,3 +763,4 @@ function update(time = performance.now()) {
 
 currentPiece = randomPiece();
 for (let i = 0; i < 5; i++) nextPieces.push(getNextPieceFromBag());
+
