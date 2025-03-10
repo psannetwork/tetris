@@ -190,22 +190,32 @@ io.on("connection", (socket) => {
     }
   });
 
-  // お邪魔行の送信：指定先が存在しない場合はルーム内からランダムに選択
-  socket.on("SendGarbage", ({ targetId, lines }) => {
-    const roomId = playerRoom.get(socket.id);
-    if (!roomId) return;
-    const room = rooms.get(roomId);
-    if (!room || room.players.size <= 1) return;
+socket.on("SendGarbage", ({ targetId, lines }) => {
+  const roomId = playerRoom.get(socket.id);
+  if (!roomId) return;
+  const room = rooms.get(roomId);
+  if (!room || room.players.size <= 1) return;
 
-    let recipientId = targetId;
-    const members = Array.from(room.players);
-    if (!recipientId || !members.includes(recipientId)) {
-      const candidates = members.filter(id => id !== socket.id);
-      recipientId = candidates[Math.floor(Math.random() * candidates.length)];
+  // 現在のルームのゲームオーバー済みのプレイヤーを取得（なければ空配列）
+  const gameOverPlayers = playerRanks.get(roomId) || [];
+  let recipientId = targetId;
+  const members = Array.from(room.players);
+
+  // targetIdが未指定、ルームに存在しない、またはゲームオーバー済みの場合は候補から選ぶ
+  if (!recipientId || !members.includes(recipientId) || gameOverPlayers.includes(recipientId)) {
+    // 自分自身とゲームオーバー済みのユーザーは除外
+    const candidates = members.filter(id => id !== socket.id && !gameOverPlayers.includes(id));
+    if (candidates.length === 0) {
+      console.log(`💥 有効な送り先が見つからなかったため、${socket.id}の SendGarbage をスキップしました。`);
+      return;
     }
-    io.to(recipientId).emit("ReceiveGarbage", { from: socket.id, lines });
-    console.log(`💥 ${socket.id} sent ${lines} garbage lines to ${recipientId} in ${roomId}`);
-  });
+    recipientId = candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  io.to(recipientId).emit("ReceiveGarbage", { from: socket.id, lines });
+  console.log(`💥 ${socket.id} が ${roomId} 内で ${recipientId} に ${lines} ラインのお邪魔行を送信しました。`);
+});
+
 
   // エラー時の処理
   socket.on("error", (err) => {
