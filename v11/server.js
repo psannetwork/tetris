@@ -3,7 +3,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
-const PORT = 5000;
+const PORT = 6000;
 const MAX_PLAYERS = 99;
 const MIN_PLAYERS_TO_START = 2;
 
